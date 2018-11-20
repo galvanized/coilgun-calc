@@ -17,43 +17,61 @@ class Coilgun():
     
     def step(self, dt):
         current_stage = None
+        force = 0
         for s in self.stages:
+            
+            if s.active:
         
-            s.active_time += dt
+                s.active_time += dt
             
-            reactance = 1/4 * s.X_L_1 / s.active_time
-            impedance = reactance + s.r + s.cap.r
+                reactance = 1/4 * s.X_L_1 / s.active_time
+                impedance = reactance + s.r + s.cap.r
+                
+                c.I = s.cap.v / impedance
             
-            c.I = s.cap.v / impedance
-            
-            power = c.I * s.cap.v
+                power = c.I * s.cap.v
 
-            cap_energy = 1/2 * s.cap.c * s.cap.v**2
-            new_cap_energy = cap_energy - power*dt
-            if new_cap_energy > 0:
-                s.cap.v = sqrt(new_cap_energy*2/s.cap.c)
+                cap_energy = 1/2 * s.cap.c * s.cap.v**2
+                new_cap_energy = cap_energy - power*dt
+                if new_cap_energy > 0:
+                    s.cap.v = sqrt(new_cap_energy*2/s.cap.c)
+                else:
+                    s.cap.v = 0
+                
+                projectile_dist = s.p - p.p
+                
+                # always keep a reasonable distance to prevent force from going to infinity
+                g1 = projectile_dist
+                g2 = sqrt(s.l**2+c.d_c**2)*copysign(1,projectile_dist)
+                g = g1 if abs(g1) > abs(g2) else g2
+                
+                f = (s.t*c.I)**2*u_0*c.a / (2*g**2*copysign(1,g))
+                force += f
+                
             else:
-                s.cap.v = 0
-            
-            projectile_dist = s.ld - p.p
-            
-            # always keep a reasonable distance to prevent force from going to infinity
-            g1 = projectile_dist
-            g2 = sqrt(s.l**2+c.d_c**2)*copysign(1,projectile_dist)
-            g = g1 if abs(g1) > abs(g2) else g2
-            
-            force = (s.t*c.I)**2*u_0*c.a / (2*g**2*copysign(1,g))
-            print(g, force)
-            
-            a = force / p.m
-            
-            p.v += a * dt
-            p.p += p.v * dt
+                s.active_time = 0
         
+        # calculate projectile movement
+        a = force / p.m
+        p.v += a * dt
+        p.p += p.v * dt
         
         
     def addstage(self, stage):
         self.stages.append(stage)
+        
+    def simplestaging(self):
+        # switch on next coil if needed
+        switch_next = False
+        for s in self.stages:
+            if switch_next:
+                s.active = True
+                print('Engaging!')
+                break
+            if s.p < p.p and s.active==True:
+                # projectile has passed the coil
+                switch_next = True
+                s.active = False
         
 
     def fire(self):
@@ -64,26 +82,27 @@ class Coilgun():
 
 
 class Stage():
-    def __init__(self, c, cap, t, l, ld):
+    def __init__(self, c, cap, t, l, p, r=0):
         '''
             pass:
             Constants object
             Capacitor object
             coil turns
             coil length
-            lead distance
+            coil position along barrel
+            additional resistance
         '''
         self.c = c
         self.cap = cap
         self.active = False
         self.t = t # coil turns
         self.l = l # coil length (meters)
-        self.ld = ld
+        self.p = p
         
         self.active_time = 0 # seconds
         
         # coil resistance 
-        self.r = c.c * self.t
+        self.r = c.c * self.t + r
         
         # coil inductance
         self.L = c.u_r * self.t**2 * c.a * 1.26e-6 / self.l
@@ -134,16 +153,21 @@ if __name__=='__main__':
     p = Projectile(0.001,0.01)
     g = Coilgun(c, p)
     cap = Capacitor(0.001, 400, 0.01)
-    s1 = Stage(c, cap, 500, 0.05, 0.08)
+    s1 = Stage(c, cap, 500, 0.05, 0.02)
+    s2 = Stage(c, cap, 500, 0.05, 0.07)
+    s3 = Stage(c, cap, 500, 0.05, 0.15)
     g.addstage(s1)
+    g.addstage(s2)
+    g.addstage(s3)
     g.fire()
     
     positions = []
     velocities = []
     voltages = []
-    for i in range(1000):
+    for i in range(100):
         positions.append(p.p)
         velocities.append(p.v)
         voltages.append(cap.v)
-        g.step(0.00001)
+        g.step(0.0001)
+        g.simplestaging()
     print(list(zip(positions, velocities, voltages)))
