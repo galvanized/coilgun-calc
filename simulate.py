@@ -5,6 +5,8 @@ Simulate and determine optimal design parameters for a coilgun.
 '''
 
 from math import *
+import numpy as np
+
 #import matplotlib.pyplot as plt
 
 u_0 = pi*4e-7 # permeability of free space
@@ -13,11 +15,13 @@ class Coilgun():
     def __init__(self, c, p):
         self.c = c # constants
         self.p = p # projectile
+        self.t = 0
         self.stages = []
     
-    def step(self, dt):
+    def step(self, dt, verbose=False):
         current_stage = None
         force = 0
+        self.t += dt
         for s in self.stages:
             
             if s.active:
@@ -27,9 +31,9 @@ class Coilgun():
                 reactance = 1/4 * s.X_L_1 / s.active_time
                 impedance = reactance + s.r + s.cap.r
                 
-                c.I = s.cap.v / impedance
+                s.I = s.cap.v / impedance
             
-                power = c.I * s.cap.v
+                power = s.I * s.cap.v
 
                 cap_energy = 1/2 * s.cap.c * s.cap.v**2
                 new_cap_energy = cap_energy - power*dt
@@ -38,40 +42,42 @@ class Coilgun():
                 else:
                     s.cap.v = 0
                 
-                projectile_dist = s.p - p.p
+                projectile_dist = s.p - self.p.p
                 
                 # always keep a reasonable distance to prevent force from going to infinity
                 g1 = projectile_dist
-                g2 = sqrt(s.l**2+c.d_c**2)*copysign(1,projectile_dist)
+                g2 = sqrt(s.l**2+self.c.d_c**2)*copysign(1,projectile_dist)
                 g = g1 if abs(g1) > abs(g2) else g2
                 
-                f = (s.t*c.I)**2*u_0*c.a / (2*g**2*copysign(1,g))
+                f = (s.t*s.I)**2 * u_0 * self.c.a / (2*g**2*copysign(1,g))
                 force += f
                 
             else:
                 s.active_time = 0
         
         # calculate projectile movement
-        a = force / p.m
-        p.v += a * dt
-        p.p += p.v * dt
+        a = force / self.p.m
+        self.p.v += a * dt
+        self.p.p += self.p.v * dt
         
         
     def addstage(self, stage):
         self.stages.append(stage)
         
-    def simplestaging(self):
+    def simplestaging(self, verbose=False):
         # switch on next coil if needed
         switch_next = False
         for s in self.stages:
             if switch_next:
                 s.active = True
-                print('Engaging!')
                 break
-            if s.p < p.p and s.active==True:
+            if s.p < self.p.p and s.active==True:
                 # projectile has passed the coil
                 switch_next = True
                 s.active = False
+                if verbose:
+                        print('Staging. t: {:0.6f} vel: {:0.2f} pos: {:0.2f} vol: {:0.1f}'.format(
+                                self.t, self.p.v, self.p.p, s.cap.v))
         
 
     def fire(self):
@@ -153,7 +159,7 @@ if __name__=='__main__':
     p = Projectile(0.001,0.01)
     g = Coilgun(c, p)
     cap = Capacitor(0.001, 400, 0.01)
-    s1 = Stage(c, cap, 500, 0.05, 0.02)
+    s1 = Stage(c, cap, 50, 0.05, 0.02)
     s2 = Stage(c, cap, 500, 0.05, 0.07)
     s3 = Stage(c, cap, 500, 0.05, 0.15)
     g.addstage(s1)
