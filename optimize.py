@@ -21,19 +21,7 @@ def run(v, verbose=False, nodat=False):
     
     g.fire()
     
-    positions = []
-    velocities = []
-    voltages = []
-    compute_dt = c.compute_time / c.compute_steps
-    for i in range(c.compute_steps):
-        positions.append(p.p)
-        velocities.append(p.v)
-        voltages.append(cap)
-        g.step(compute_dt, verbose)
-        g.simplestaging(verbose)
-    
     loss = 0
-    loss -= p.v
     
     # encourage using less than 1500 winds total
     loss += max(0, sum(v[::2]) - windlimit) * 10
@@ -46,6 +34,24 @@ def run(v, verbose=False, nodat=False):
     for i in range(len(pos[:-1])):
         if pos[i] > pos[i+1]:
             loss += (pos[i] - pos[i+1])*10
+            
+    if loss == 0:
+    
+        positions = []
+        velocities = []
+        voltages = []
+        compute_dt = c.compute_time / c.compute_steps
+        for i in range(c.compute_steps):
+            positions.append(p.p)
+            velocities.append(p.v)
+            voltages.append(cap)
+            g.step(compute_dt, verbose)
+            g.simplestaging(verbose)
+        
+        
+        loss -= p.v
+    
+    
     
     if not nodat:
         print('v: {:.1f}   d: {:.1f}    l: {:.0e}    \nv: {}'.format(p.v, p.p, loss, v))
@@ -73,7 +79,7 @@ if __name__ == '__main__':
     
     b = indv * c.stages
          
-    res = opt.differential_evolution(run, b, init='latinhypercube', popsize=1)
+    res = opt.differential_evolution(run, b, init='latinhypercube', popsize=2)
     print(res.x, res.fun)
     
     tstart = time.time()
@@ -220,6 +226,45 @@ if __name__ == '__main__':
     164.1 mm	639 turns
     252.3 mm	134 turns
     344.1 mm	139 turns
+    
+    
+    80% force multiplier, 5 stages
+    Staging. t: 0.002462 vel: 48.08 pos: 0.03 vol: 360.8
+    Staging. t: 0.004250 vel: 67.00 pos: 0.12 vol: 327.3
+    Staging. t: 0.005375 vel: 79.96 pos: 0.19 vol: 288.2
+    Staging. t: 0.006500 vel: 89.55 pos: 0.29 vol: 239.3
+    Staging. t: 0.007225 vel: 95.28 pos: 0.35 vol: 191.6
+     25.3 mm	665 turns
+    115.5 mm	501 turns
+    193.0 mm	264 turns
+    284.6 mm	203 turns
+    350.9 mm	115 turns
+    
+    30% force multiplier, 5 stages
+    Staging. t: 0.002325 vel: 27.02 pos: 0.02 vol: 359.4
+    Staging. t: 0.004225 vel: 38.55 pos: 0.07 vol: 322.0
+    Staging. t: 0.005538 vel: 46.35 pos: 0.13 vol: 277.5
+    Staging. t: 0.006863 vel: 51.86 pos: 0.19 vol: 218.4
+    Staging. t: 0.008413 vel: 55.06 pos: 0.27 vol: 166.2
+     17.2 mm	613 turns
+     72.6 mm	492 turns
+    124.9 mm	277 turns
+    187.8 mm	199 turns
+    269.1 mm	211 turns
+    
+    100% force multiplier, 5 stages
+    Staging. t: 0.002050 vel: 55.05 pos: 0.03 vol: 355.0
+    Staging. t: 0.004000 vel: 77.09 pos: 0.14 vol: 310.1
+    Staging. t: 0.005813 vel: 91.02 pos: 0.28 vol: 267.0
+    Staging. t: 0.008888 vel: 100.32 pos: 0.56 vol: 191.8
+    Staging. t: 0.010125 vel: 104.07 pos: 0.69 vol: 120.2
+     24.8 mm	502 turns
+    137.7 mm	438 turns
+    279.8 mm	380 turns
+    561.3 mm	362 turns
+    686.8 mm	112 turns
+
+
 
 
 

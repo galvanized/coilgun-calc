@@ -78,6 +78,20 @@ class Coilgun():
                 if verbose:
                         print('Staging. t: {:0.6f} vel: {:0.2f} pos: {:0.2f} vol: {:0.1f}'.format(
                                 self.t, self.p.v, self.p.p, s.cap.v))
+                                
+    def tripwirestaging(self, positions, verbose=False):
+        stage_positions = [s.p for s in self.stages]
+        p = self.p.p
+        for i, (sp, tp) in enumerate(zip(stage_positions, positions)):
+            if tp <= p < sp:
+                self.stages[i].active = True
+            else:
+                if self.stages[i].active and verbose:
+                    print('Staging. t: {:0.6f} vel: {:0.2f} pos: {:0.2f} vol: {:0.1f}'.format(
+                            self.t, self.p.v, self.p.p, self.stages[i].cap.v))
+                self.stages[i].active = False
+        
+            
         
 
     def fire(self):
@@ -145,17 +159,17 @@ class Constants():
         self.r_w = 0.001 # wire resistance (ohms per meter)
         self.d_i = 0.01 # coil interior diameter (meters)
         self.d_w = 0.00001 # wire diameter (meters
-        self.fm = 0.8 # force multiplier
+        self.fm = 1 # force multiplier
         self.e = 0.04 # electrical to kinetic efficiency
         
         self.stages = 5
         self.init_v = 400 # voltage on capacitors
         self.total_c = 0.001 # capacitance total
         
-        self.windlimit = 1500 # sum of all coils' winding numbers
+        self.windlimit = 1800 # sum of all coils' winding numbers
         
-        self.compute_time = 0.015 # seconds
-        self.compute_steps = 1000
+        self.compute_time = 0.025 # seconds
+        self.compute_steps = 2000
         
         self.compute()
         
@@ -170,9 +184,9 @@ if __name__=='__main__':
     p = Projectile(0.001,0.01)
     g = Coilgun(c, p)
     cap = Capacitor(0.001, 400, 0.01)
-    s1 = Stage(c, cap, 50, 0.05, 0.02)
-    s2 = Stage(c, cap, 500, 0.05, 0.07)
-    s3 = Stage(c, cap, 500, 0.05, 0.15)
+    s1 = Stage(c, cap, 500, 0.05, 0.02)
+    s2 = Stage(c, cap, 300, 0.05, 0.07)
+    s3 = Stage(c, cap, 200, 0.05, 0.15)
     g.addstage(s1)
     g.addstage(s2)
     g.addstage(s3)
@@ -181,10 +195,10 @@ if __name__=='__main__':
     positions = []
     velocities = []
     voltages = []
-    for i in range(100):
+    for i in range(10000):
         positions.append(p.p)
         velocities.append(p.v)
         voltages.append(cap.v)
         g.step(0.0001)
-        g.simplestaging()
-    print(list(zip(positions, velocities, voltages)))
+        g.tripwirestaging([-1,0.05, 0.1], verbose=True)
+    #print(list(zip(positions, velocities, voltages)))
