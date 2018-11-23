@@ -2,20 +2,34 @@ from simulate import *
 from scipy import optimize as opt
 import time
 
-def run(v, verbose=False):
+def run(v, verbose=False, nodat=False):
     # fixed
+    windlimit=1500
+    capacitance = 0.001
+    stagecaps = False
+    
+    
     c = Constants()
     p = Projectile(0.001,0.01)
     g = Coilgun(c, p)
-    cap = Capacitor(0.001, 400, 0.01)
+    
+    if stagecaps:
+        cap1 = Capacitor(capacitance/3, 400, 0.01)
+        cap2 = Capacitor(capacitance/3, 400, 0.01)
+        cap3 = Capacitor(capacitance/3, 400, 0.01)
+    else:
+        cap1 = Capacitor(capacitance, 400, 0.01)
+        cap2 = cap1
+        cap3 = cap1
     
     #vary
     
-    s1w, s2w, s3w, s1l, s2l, s3l, s1d, s2d, s3d = v
+    s1w, s2w, s3w, s1d, s2d, s3d = v
+    s1l, s2l, s3l = [0.005]*3 #coil lengths (5mm)
     
-    s1 = Stage(c, cap, s1w, s1l, s1d)
-    s2 = Stage(c, cap, s2w, s2l, s2d)
-    s3 = Stage(c, cap, s3w, s3l, s3d)
+    s1 = Stage(c, cap1, s1w, s1l, s1d)
+    s2 = Stage(c, cap2, s2w, s2l, s2d)
+    s3 = Stage(c, cap3, s3w, s3l, s3d)
     
     g.addstage(s1)
     g.addstage(s2)
@@ -28,7 +42,7 @@ def run(v, verbose=False):
     for i in range(10000):
         positions.append(p.p)
         velocities.append(p.v)
-        voltages.append(cap.v)
+        voltages.append((cap1, cap2, cap3,))
         g.step(0.00001, verbose)
         g.simplestaging(verbose)
     
@@ -36,7 +50,7 @@ def run(v, verbose=False):
     loss -= p.v
     
     # encourage using less than 1500 winds total
-    loss += max(0, s1w+s2w+s3w - 1500) * 10
+    loss += max(0, s1w+s2w+s3w - windlimit) * 10
 
     # force all positive
     loss += 1e10 if not allpositive(s1w, s2w, s3w, s1l, s2l, s3l, s1d, s2d, s3d) else 0
@@ -45,7 +59,8 @@ def run(v, verbose=False):
     loss += max(0, s1d - s2d)
     loss += max(0, s2d - s3d)
     
-    print('v: {:.1f}   d: {:.1f}    l: {:.0e}    \nv: {}'.format(p.v, p.p, loss, v))
+    if not nodat:
+        print('v: {:.1f}   d: {:.1f}    l: {:.0e}    \nv: {}'.format(p.v, p.p, loss, v))
     return loss
     
 def allpositive(*l):
@@ -55,18 +70,27 @@ def allpositive(*l):
     return True
     
     
+def fmt_mm(v):
+    return '{:5.1f} mm'.format(v*1000)
+    
+def fmt_t(t):
+    return '{} turns'.format(int(round(t)))
+    
 
 if __name__ == '__main__':
+    windlimit = 1500
     x0 = np.array([1,1,1,1,1,1,1,1,1])
-    b = [(100,1500), (100,1500), (10,1500),
-         (0,0.1), (0,0.1), (0,0.1),
-         (0,0.01), (0,0.5), (0,1)]
+    b = [(1,windlimit), (1,windlimit), (1,windlimit),
+         (1e-6,0.01), (1e-6,0.5), (1e-6,1)]
     res = opt.differential_evolution(run, b, init='latinhypercube', popsize=100)
     #res = opt.basinhopping(run, x0)
     print(res.x, res.fun)
     
     tstart = time.time()
-    run(res.x, verbose=True)
+    run(res.x, verbose=True, nodat=True)
+    for i in range(3):
+        print(fmt_mm(res.x[3+i])+'\t'+fmt_t(res.x[0+i]))
+        
     print('sim speed: {:0.2f}hz'.format(1/(time.time()-tstart)))
     
     '''
@@ -103,6 +127,91 @@ if __name__ == '__main__':
      370 turns, 285 turns, 100 turns
      6mm, 6mm, 5mm
      4mm, 93mm, 267mm
+     
+     
+    Staging. t: 0.000820 vel: 36.28 pos: 0.01 vol: 369.2
+    Staging. t: 0.002890 vel: 66.67 pos: 0.09 vol: 322.1
+    Staging. t: 0.009040 vel: 84.15 pos: 0.51 vol: 238.2
+    v: 84.2   d: 8.2    l: -8e+01    
+    v: [2.62554409e+02 4.61911043e+02 7.75402255e+02 9.97447123e-03
+     9.34788315e-02 5.09050559e-01]
+    sim speed: 11.02hz
+
+
+    popsize 20
+    Staging. t: 0.000980 vel: 32.29 pos: 0.01 vol: 375.5
+    Staging. t: 0.004410 vel: 65.45 pos: 0.13 vol: 311.3
+    Staging. t: 0.006320 vel: 80.89 pos: 0.26 vol: 242.5
+    v: 80.9   d: 7.8    l: -8e+01    
+    v: [4.21092747e+02 7.16402417e+02 3.26255858e+02 9.90732152e-03
+     1.33009750e-01 2.61421267e-01]
+    sim speed: 11.47hz
+    
+    421, 716, 326 turns
+    9.9mm, 133mm, 261mm
+    
+    
+    popsize 100
+    Staging. t: 0.001000 vel: 31.90 pos: 0.01 vol: 376.7
+    Staging. t: 0.003530 vel: 64.14 pos: 0.10 vol: 319.6
+    Staging. t: 0.006030 vel: 80.82 pos: 0.27 vol: 251.8
+    v: 80.8   d: 7.9    l: -8e+01    
+    v: [4.43369146e+02 5.79061178e+02 4.41296514e+02 9.97662763e-03
+     1.01236184e-01 2.65544806e-01]
+    sim speed: 11.43hz
+    
+    443, 579, 441 turns
+    10mm, 101mm, 265mm
+    
+    Staging. t: 0.000950 vel: 32.89 pos: 0.01 vol: 373.6
+    Staging. t: 0.004190 vel: 65.11 pos: 0.13 vol: 315.0
+    Staging. t: 0.006390 vel: 81.00 pos: 0.28 vol: 243.0
+    v: 81.0   d: 7.9    l: -8e+01    
+    v: [3.88535838e+02 7.22938020e+02 3.65438071e+02 9.94065579e-03
+     1.27928047e-01 2.74936279e-01]
+    sim speed: 11.42hz
+    
+    
+    1.2 mF, 0.3 fm, popsize 10
+    Staging. t: 0.001460 vel: 20.34 pos: 0.01 vol: 372.6
+    Staging. t: 0.005560 vel: 38.72 pos: 0.10 vol: 312.2
+    Staging. t: 0.008220 vel: 47.72 pos: 0.21 vol: 250.6
+    v: 47.7   d: 4.6    l: -5e+01    
+    v: [4.47527127e+02 6.70123512e+02 3.70766148e+02 9.84701394e-03
+     1.03281730e-01 2.09379745e-01]
+    sim speed: 5.36hz
+    448 turns, 670 turns, 370 turns
+    
+    1.2mF, 0.8fm, popsize 1, windlimit 2000
+    Staging. t: 0.000840 vel: 31.85 pos: 0.01 vol: 371.7
+    Staging. t: 0.001640 vel: 56.77 pos: 0.04 vol: 322.5
+    Staging. t: 0.007460 vel: 74.65 pos: 0.38 vol: 264.9
+    8.9 mm 253.0 turns
+    39.3 mm 154.0 turns
+    375.9 mm 880.0 turns
+    sim speed: 10.41hz
+    
+    
+    different caps
+    Staging. t: 0.000720 vel: 22.95 pos: 0.01 vol: 299.2
+    Staging. t: 0.011180 vel: 23.68 pos: 0.25 vol: 9.6
+    Staging. t: 0.012070 vel: 45.54 pos: 0.28 vol: 251.7
+    5.9 mm	204 turns
+    250.2 mm	425 turns
+    277.3 mm	183 turns
+    sim speed: 9.02hz
+    
+    
+    shared cap
+    Staging. t: 0.000980 vel: 31.15 pos: 0.01 vol: 374.2
+    Staging. t: 0.004130 vel: 60.41 pos: 0.12 vol: 324.9
+    Staging. t: 0.006830 vel: 76.35 pos: 0.29 vol: 263.8
+      9.8 mm	353 turns
+    118.6 mm	686 turns
+    285.7 mm	447 turns
+
+
+
 
     
     

@@ -56,7 +56,7 @@ class Coilgun():
                 s.active_time = 0
         
         # calculate projectile movement
-        a = force / self.p.m
+        a = force / self.p.m * self.c.fm
         self.p.v += a * dt
         self.p.p += self.p.v * dt
         
@@ -145,6 +145,7 @@ class Constants():
         self.r_w = 0.001 # wire resistance (ohms per meter)
         self.d_i = 0.01 # coil interior diameter (meters)
         self.d_w = 0.00001 # wire diameter (meters
+        self.fm = 0.8 # force multiplier
         self.e = 0.04 # electrical to kinetic efficiency
         self.compute()
         
