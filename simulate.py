@@ -147,6 +147,16 @@ class Constants():
         self.d_w = 0.00001 # wire diameter (meters
         self.fm = 0.8 # force multiplier
         self.e = 0.04 # electrical to kinetic efficiency
+        
+        self.stages = 5
+        self.init_v = 400 # voltage on capacitors
+        self.total_c = 0.001 # capacitance total
+        
+        self.windlimit = 1500 # sum of all coils' winding numbers
+        
+        self.compute_time = 0.015 # seconds
+        self.compute_steps = 1000
+        
         self.compute()
         
     def compute(self):

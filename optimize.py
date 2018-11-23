@@ -3,66 +3,49 @@ from scipy import optimize as opt
 import time
 
 def run(v, verbose=False, nodat=False):
+    c = Constants()
     # fixed
-    windlimit=1500
-    capacitance = 0.001
+    windlimit = c.windlimit
+    capacitance = c.total_c
     stagecaps = False
     
     
     c = Constants()
     p = Projectile(0.001,0.01)
     g = Coilgun(c, p)
+    cap = Capacitor(capacitance, c.init_v, 0.01)
     
-    if stagecaps:
-        cap1 = Capacitor(capacitance/4, 400, 0.01)
-        cap2 = Capacitor(capacitance/4, 400, 0.01)
-        cap3 = Capacitor(capacitance/4, 400, 0.01)
-        cap4 = Capacitor(capacitance/4, 400, 0.01)
-    else:
-        cap1 = Capacitor(capacitance, 400, 0.01)
-        cap2 = cap1
-        cap3 = cap1
-        cap4 = cap1
+    for s in range(c.stages):
+        s = Stage(c, cap, v[2*s], 0.005, v[2*s+1])
+        g.addstage(s)
     
-    #vary
-    
-    s1w, s2w, s3w, s4w, s1d, s2d, s3d, s4d = v
-    s1l, s2l, s3l, s4l = [0.005]*4 #coil lengths (5mm)
-    
-    s1 = Stage(c, cap1, s1w, s1l, s1d)
-    s2 = Stage(c, cap2, s2w, s2l, s2d)
-    s3 = Stage(c, cap3, s3w, s3l, s3d)
-    s4 = Stage(c, cap4, s4w, s4l, s4d)
-    
-    g.addstage(s1)
-    g.addstage(s2)
-    g.addstage(s3)
-    g.addstage(s4)
     g.fire()
     
     positions = []
     velocities = []
     voltages = []
-    for i in range(1000):
+    compute_dt = c.compute_time / c.compute_steps
+    for i in range(c.compute_steps):
         positions.append(p.p)
         velocities.append(p.v)
-        voltages.append((cap1, cap2, cap3, cap4,))
-        g.step(0.0001, verbose)
+        voltages.append(cap)
+        g.step(compute_dt, verbose)
         g.simplestaging(verbose)
     
     loss = 0
     loss -= p.v
     
     # encourage using less than 1500 winds total
-    loss += max(0, s1w+s2w+s3w+s4w - windlimit) * 10
+    loss += max(0, sum(v[::2]) - windlimit) * 10
 
     # force all positive
-    loss += 1e10 if not allpositive(s1w, s2w, s3w, s1l, s2l, s3l, s1d, s2d, s3d,
-                                    s4w, s4l, s4d) else 0
+    loss += 1e10 if not allpositive(*v) else 0
     
     # encourage correct ordering
-    loss += max(0, s1d - s2d)
-    loss += max(0, s2d - s3d)
+    pos = v[1::2]
+    for i in range(len(pos[:-1])):
+        if pos[i] > pos[i+1]:
+            loss += (pos[i] - pos[i+1])*10
     
     if not nodat:
         print('v: {:.1f}   d: {:.1f}    l: {:.0e}    \nv: {}'.format(p.v, p.p, loss, v))
@@ -83,18 +66,20 @@ def fmt_t(t):
     
 
 if __name__ == '__main__':
-    windlimit = 1500
-    x0 = np.array([1,1,1,1,1,1,1,1,1])
-    b = [(1,windlimit), (1,windlimit), (1,windlimit), (1,windlimit),
-         (1e-6,1), (1e-6,1), (1e-6,1), (1e-6, 1)]
+    c = Constants()
+    windlimit = c.windlimit
+    
+    indv = [(1,windlimit), (1e-6, 1)]
+    
+    b = indv * c.stages
+         
     res = opt.differential_evolution(run, b, init='latinhypercube', popsize=1)
-    #res = opt.basinhopping(run, x0)
     print(res.x, res.fun)
     
     tstart = time.time()
     run(res.x, verbose=True, nodat=True)
-    for i in range(4):
-        print(fmt_mm(res.x[4+i])+'\t'+fmt_t(res.x[0+i]))
+    for i in range(c.stages):
+        print(fmt_mm(res.x[i*2+1])+'\t'+fmt_t(res.x[i*2]))
         
     print('sim speed: {:0.2f}hz'.format(1/(time.time()-tstart)))
     
@@ -225,6 +210,17 @@ if __name__ == '__main__':
     302.2 mm	578 turns
     625.5 mm	273 turns
     415.3 mm	20 turns
+    
+    four coils, shared cap
+    Staging. t: 0.001845 vel: 47.64 pos: 0.02 vol: 355.7
+    Staging. t: 0.004710 vel: 68.47 pos: 0.16 vol: 310.2
+    Staging. t: 0.005970 vel: 80.45 pos: 0.25 vol: 211.5
+    Staging. t: 0.007095 vel: 85.61 pos: 0.34 vol: 154.9
+     21.2 mm	457 turns
+    164.1 mm	639 turns
+    252.3 mm	134 turns
+    344.1 mm	139 turns
+
 
 
 
